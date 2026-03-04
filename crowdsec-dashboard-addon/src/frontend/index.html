@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrowdSec Dashboard</title>
+<script src="/config.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #050a14; color: #e2e8f0; font-family: 'Courier New', monospace; min-height: 100vh; }
+  button { cursor: pointer; font-family: inherit; transition: opacity 0.15s; border: none; }
+  button:hover:not(:disabled) { opacity: 0.8; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  input { font-family: inherit; outline: none; }
+  table { width: 100%; border-collapse: collapse; min-width: 500px; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .overflow { overflow-x: auto; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: #0a0f1e; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+
+  .header { background: #0a0f1e; border-bottom: 1px solid #1e293b; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; position: sticky; top: 0; z-index: 10; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .stats { display: flex; gap: 20px; align-items: center; }
+  .stat { text-align: center; }
+  .stat-val { font-size: 20px; font-weight: bold; }
+  .stat-lbl { font-size: 9px; color: #334155; letter-spacing: 0.15em; }
+  .divider { width: 1px; height: 36px; background: #1e293b; }
+
+  .tabs { background: #0a0f1e; border-bottom: 1px solid #0f172a; padding: 10px 24px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .tab { padding: 5px 14px; border-radius: 6px; font-size: 11px; letter-spacing: 0.05em; }
+  .tab.active { background: #1e293b; border: 1px solid #334155; color: #f1f5f9; }
+  .tab.inactive { background: transparent; border: 1px solid transparent; color: #475569; }
+
+  .content { padding: 20px 24px; }
+  .section-title { font-size: 10px; letter-spacing: 0.2em; margin-bottom: 10px; }
+
+  .table-wrap { border-radius: 8px; overflow: hidden; margin-bottom: 28px; }
+  th { padding: 9px 14px; text-align: left; font-size: 10px; color: #475569; letter-spacing: 0.15em; font-weight: normal; border-bottom: 1px solid #1e293b; white-space: nowrap; }
+  td { padding: 9px 14px; border-bottom: 1px solid #0f172a; }
+
+  .btn-refresh { background: #1e293b; border: 1px solid #334155; color: #94a3b8; border-radius: 6px; padding: 7px 14px; font-size: 11px; }
+  .btn-settings { background: transparent; border: 1px solid #1e293b; color: #475569; border-radius: 6px; padding: 7px 10px; font-size: 12px; }
+  .btn-delete { background: #ef444415; border: 1px solid #ef444430 !important; color: #ef4444; border-radius: 4px; padding: 3px 10px; font-size: 11px; }
+  .btn-connect { width: 100%; background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; border-radius: 6px; padding: 12px; font-size: 12px; letter-spacing: 0.1em; font-weight: bold; }
+
+  .search { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; border-radius: 6px; padding: 6px 14px; font-size: 11px; width: 260px; }
+  .search:focus { border-color: #3b82f6; }
+
+  .error-bar { margin: 16px 24px; background: #ef444415; border: 1px solid #ef444430; border-radius: 6px; padding: 12px; color: #ef4444; font-size: 12px; }
+
+  .empty { text-align: center; color: #1e293b; padding: 80px; font-size: 13px; }
+
+  /* Setup Modal */
+  #setupModal { position: fixed; inset: 0; background: #050a14; display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .setup-box { width: 420px; background: #0a0f1e; border: 1px solid #1e293b; border-radius: 12px; padding: 40px; }
+  .setup-label { font-size: 10px; color: #475569; letter-spacing: 0.15em; display: block; margin-bottom: 8px; }
+  .setup-input { width: 100%; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; border-radius: 6px; padding: 10px 14px; font-size: 12px; }
+  .setup-input:focus { border-color: #3b82f6; }
+  .setup-error { background: #ef444415; border: 1px solid #ef444430; border-radius: 6px; padding: 12px; color: #ef4444; font-size: 12px; margin-bottom: 20px; display: none; }
+  .setup-hint { margin-top: 16px; padding: 12px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #475569; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<!-- Setup Modal -->
+<div id="setupModal">
+  <div class="setup-box">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:36px;">
+      <div style="width:44px;height:44px;background:linear-gradient(135deg,#1e40af,#3b82f6);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;">🛡️</div>
+      <div>
+        <div style="font-size:16px;font-weight:bold;color:#f1f5f9;letter-spacing:0.12em;">CROWDSEC</div>
+        <div style="font-size:10px;color:#475569;letter-spacing:0.2em;">DASHBOARD KONFIGURATION</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <label class="setup-label">API URL</label>
+      <input id="cfgUrl" class="setup-input" type="text" value="/api">
+    </div>
+    <div style="margin-bottom:32px;">
+      <label class="setup-label">API KEY</label>
+      <input id="cfgKey" class="setup-input" type="password" placeholder="Aus Add-on Konfiguration">
+    </div>
+
+    <div id="setupErr" class="setup-error"></div>
+
+    <button class="btn-connect" onclick="connect()">VERBINDEN →</button>
+
+    <div class="setup-hint">
+      💡 API URL und Key werden automatisch aus der Add-on Konfiguration geladen wenn du das Dashboard über Home Assistant Ingress öffnest.
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="app" style="display:none;">
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">🛡️</div>
+      <div>
+        <div style="font-size:14px;font-weight:bold;letter-spacing:0.12em;color:#f1f5f9;">CROWDSEC DASHBOARD</div>
+        <div id="lastUpdate" style="font-size:10px;color:#334155;">Verbunden</div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div id="sTotal" class="stat-val" style="color:#ef4444;">0</div><div class="stat-lbl">GESAMT</div></div>
+      <div class="stat"><div id="sLocal" class="stat-val" style="color:#f97316;">0</div><div class="stat-lbl">LOKAL</div></div>
+      <div class="stat"><div id="sCapi" class="stat-val" style="color:#3b82f6;">0</div><div class="stat-lbl">CAPI</div></div>
+      <div class="divider"></div>
+      <button class="btn-refresh" id="refreshBtn" onclick="loadData()">↻ REFRESH</button>
+      <button class="btn-settings" onclick="showSetup()">⚙</button>
+    </div>
+  </div>
+
+  <!-- Tabs + Search -->
+  <div class="tabs">
+    <button class="tab active" id="tabDec" onclick="setTab('decisions')">🔒 Bans (<span id="cntBan">0</span>)</button>
+    <button class="tab inactive" id="tabAlt" onclick="setTab('alerts')">⚡ Alerts (<span id="cntAlt">0</span>)</button>
+    <div style="flex:1;"></div>
+    <input class="search" id="search" placeholder="IP, Grund oder Land suchen..." oninput="renderDecisions()">
+  </div>
+
+  <div id="errBar" class="error-bar" style="display:none;"></div>
+
+  <!-- Content -->
+  <div class="content">
+    <!-- Decisions View -->
+    <div id="vDecisions">
+      <div id="secLocal" style="margin-bottom:28px;">
+        <div class="section-title" style="color:#f97316;">★ LOKALE BANS (<span id="cntLocal">0</span>)</div>
+        <div class="table-wrap overflow" style="background:#0a0f1e;border:1px solid #f9731625;">
+          <table><thead><tr style="background:#0f172a;">
+            <th>IP / Range</th><th>Grund</th><th>Land</th><th>Ablauf</th><th></th>
+          </tr></thead><tbody id="bodyLocal"></tbody></table>
+        </div>
+      </div>
+      <div id="secCapi">
+        <div class="section-title" style="color:#3b82f6;">☁ COMMUNITY BLOCKLIST (<span id="cntCapi">0</span>)</div>
+        <div class="table-wrap overflow" style="background:#0a0f1e;border:1px solid #3b82f625;">
+          <table><thead><tr style="background:#0f172a;">
+            <th>IP / Range</th><th>Grund</th><th>Land</th><th>Ablauf</th><th></th>
+          </tr></thead><tbody id="bodyCapi"></tbody></table>
+        </div>
+      </div>
+      <div id="emptyDec" class="empty" style="display:none;">Keine Bans gefunden</div>
+    </div>
+
+    <!-- Alerts View -->
+    <div id="vAlerts" style="display:none;">
+      <div class="table-wrap overflow" style="background:#0a0f1e;border:1px solid #1e293b;">
+        <table><thead><tr style="background:#0f172a;">
+          <th>ID</th><th>IP</th><th>Szenario</th><th>Land</th><th>Zeit</th>
+        </tr></thead><tbody id="bodyAlerts"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let decisions = [], alerts = [], interval = null;
+
+// Auto-load config from window globals (set by run.sh via config.js)
+const AUTO_URL = (typeof window.CROWDSEC_API !== 'undefined') ? window.CROWDSEC_API : '/api';
+const AUTO_KEY = (typeof window.CROWDSEC_KEY !== 'undefined') ? window.CROWDSEC_KEY : '';
+
+document.getElementById('cfgUrl').value = AUTO_URL;
+if (AUTO_KEY) document.getElementById('cfgKey').value = AUTO_KEY;
+
+// Auto-connect if key is present
+if (AUTO_KEY) {
+  setTimeout(() => connect(), 300);
+}
+
+function getUrl() { return document.getElementById('cfgUrl').value.trim(); }
+function getKey() { return document.getElementById('cfgKey').value.trim(); }
+function headers() { return { 'X-Api-Key': getKey() }; }
+
+function flag(c) {
+  if (!c || c.length !== 2) return '🌐';
+  try { return String.fromCodePoint(...[...c.toUpperCase()].map(x => 0x1F1E6 + x.charCodeAt(0) - 65)); }
+  catch { return '🌐'; }
+}
+
+function badge(reason) {
+  const r = (reason||'').toLowerCase();
+  const col = r.includes('bf')||r.includes('brute') ? '#ef4444'
+    : r.includes('scan')||r.includes('prob') ? '#f97316'
+    : r.includes('cve')||r.includes('exploit') ? '#a855f7'
+    : r.includes('back') ? '#ec4899'
+    : r.includes('custom') ? '#22c55e' : '#3b82f6';
+  const lbl = (reason||'').replace('crowdsecurity/','').replace('custom/','★ ');
+  return `<span style="background:${col}20;border:1px solid ${col}50;color:${col};border-radius:4px;padding:2px 8px;font-size:11px;font-family:monospace;white-space:nowrap;">${lbl}</span>`;
+}
+
+async function connect() {
+  const btn = document.querySelector('#setupModal .btn-connect');
+  if (btn) btn.textContent = 'VERBINDE...';
+  document.getElementById('setupErr').style.display = 'none';
+  try {
+    await loadData(true);
+    document.getElementById('setupModal').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    if (interval) clearInterval(interval);
+    interval = setInterval(loadData, 30000);
+  } catch(e) {
+    const err = document.getElementById('setupErr');
+    err.textContent = '⚠️ ' + e.message;
+    err.style.display = 'block';
+  }
+  if (btn) btn.textContent = 'VERBINDEN →';
+}
+
+function showSetup() {
+  document.getElementById('setupModal').style.display = 'flex';
+}
+
+async function loadData(fromSetup = false) {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) { btn.textContent = '...'; btn.disabled = true; }
+  try {
+    const [dr, ar] = await Promise.all([
+      fetch(`${getUrl()}/v1/decisions?limit=500`, { headers: headers() }),
+      fetch(`${getUrl()}/v1/alerts?limit=100`, { headers: headers() })
+    ]);
+    if (!dr.ok) throw new Error(`Verbindung fehlgeschlagen (${dr.status})`);
+    decisions = await dr.json() || [];
+    alerts = ar.ok ? (await ar.json() || []) : [];
+    document.getElementById('lastUpdate').textContent = '↻ ' + new Date().toLocaleTimeString('de-DE');
+    document.getElementById('errBar').style.display = 'none';
+    updateStats();
+    renderDecisions();
+    renderAlerts();
+  } catch(e) {
+    if (fromSetup) throw e;
+    const eb = document.getElementById('errBar');
+    if (eb) { eb.textContent = '⚠️ ' + e.message; eb.style.display = 'block'; }
+  }
+  if (btn) { btn.textContent = '↻ REFRESH'; btn.disabled = false; }
+}
+
+function updateStats() {
+  const local = decisions.filter(d => d.origin !== 'CAPI').length;
+  const capi = decisions.filter(d => d.origin === 'CAPI').length;
+  document.getElementById('sTotal').textContent = decisions.length;
+  document.getElementById('sLocal').textContent = local;
+  document.getElementById('sCapi').textContent = capi;
+  document.getElementById('cntBan').textContent = decisions.length;
+  document.getElementById('cntAlt').textContent = alerts.length;
+}
+
+function renderDecisions() {
+  const q = (document.getElementById('search')?.value||'').toLowerCase();
+  const f = decisions.filter(d => !q || ((d.value||'')+(d.reason||'')+(d.country||'')).toLowerCase().includes(q));
+  const local = f.filter(d => d.origin !== 'CAPI');
+  const capi = f.filter(d => d.origin === 'CAPI');
+
+  document.getElementById('cntLocal').textContent = local.length;
+  document.getElementById('cntCapi').textContent = capi.length;
+  document.getElementById('secLocal').style.display = local.length ? 'block' : 'none';
+  document.getElementById('secCapi').style.display = capi.length ? 'block' : 'none';
+  document.getElementById('emptyDec').style.display = (!local.length && !capi.length) ? 'block' : 'none';
+
+  document.getElementById('bodyLocal').innerHTML = local.map(row).join('');
+  document.getElementById('bodyCapi').innerHTML = capi.map(row).join('');
+}
+
+function row(d) {
+  return `<tr>
+    <td style="color:#f1f5f9;font-family:monospace;font-size:13px;">${d.value||''}</td>
+    <td>${badge(d.reason)}</td>
+    <td><span style="display:flex;align-items:center;gap:6px;">${flag(d.country)} <span style="color:#64748b;font-size:12px;">${d.country||'??'}</span></span></td>
+    <td style="color:#475569;font-size:11px;font-family:monospace;">${d.duration||'∞'}</td>
+    <td><button class="btn-delete" id="del${d.id}" onclick="del(${d.id})">🗑 aufheben</button></td>
+  </tr>`;
+}
+
+function renderAlerts() {
+  document.getElementById('bodyAlerts').innerHTML = alerts.length
+    ? alerts.map(a => `<tr>
+        <td style="color:#475569;font-size:12px;">#${a.id}</td>
+        <td style="color:#f1f5f9;font-family:monospace;font-size:13px;">${a.source?.ip||'-'}</td>
+        <td>${badge(a.scenario)}</td>
+        <td>${flag(a.source?.cn)} <span style="color:#64748b;font-size:12px;">${a.source?.cn||'??'}</span></td>
+        <td style="color:#475569;font-size:11px;">${a.created_at ? new Date(a.created_at).toLocaleString('de-DE') : '-'}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" style="padding:60px;text-align:center;color:#334155;">Keine Alerts</td></tr>';
+}
+
+async function del(id) {
+  const btn = document.getElementById('del'+id);
+  if (btn) { btn.textContent='...'; btn.disabled=true; }
+  try {
+    const r = await fetch(`${getUrl()}/v1/decisions/${id}`, { method:'DELETE', headers: headers() });
+    if (!r.ok) throw new Error('Löschen fehlgeschlagen');
+    decisions = decisions.filter(d => d.id !== id);
+    updateStats();
+    renderDecisions();
+  } catch(e) {
+    alert('Fehler: ' + e.message);
+    if (btn) { btn.textContent='🗑 aufheben'; btn.disabled=false; }
+  }
+}
+
+function setTab(tab) {
+  document.getElementById('vDecisions').style.display = tab==='decisions' ? 'block' : 'none';
+  document.getElementById('vAlerts').style.display = tab==='alerts' ? 'block' : 'none';
+  document.getElementById('tabDec').className = 'tab ' + (tab==='decisions' ? 'active' : 'inactive');
+  document.getElementById('tabAlt').className = 'tab ' + (tab==='alerts' ? 'active' : 'inactive');
+}
+</script>
+</body>
+</html>
