@@ -163,7 +163,7 @@
 let decisions = [], alerts = [], interval = null;
 
 // Auto-load config from window globals (set by run.sh via config.js)
-const AUTO_URL = (typeof window.CROWDSEC_API !== 'undefined') ? window.CROWDSEC_API : '/api';
+const AUTO_URL = (typeof window.CROWDSEC_API !== 'undefined') ? window.CROWDSEC_API : 'http://424ccef4-crowdsec:8080';
 const AUTO_KEY = (typeof window.CROWDSEC_KEY !== 'undefined') ? window.CROWDSEC_KEY : '';
 
 document.getElementById('cfgUrl').value = AUTO_URL;
