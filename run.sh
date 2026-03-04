@@ -3,6 +3,7 @@
 API_KEY=$(bashio::config 'crowdsec_api_key')
 CROWDSEC_URL=$(bashio::config 'crowdsec_url')
 
+cp /tmp/nginx-crowdsec.conf /etc/nginx/nginx.conf
 sed -i "s|CROWDSEC_API_KEY_PLACEHOLDER|${API_KEY}|" /etc/nginx/nginx.conf
 sed -i "s|CROWDSEC_URL_PLACEHOLDER|${CROWDSEC_URL}|" /etc/nginx/nginx.conf
 
