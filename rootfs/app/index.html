@@ -802,7 +802,8 @@ function startCountdown() {
 
 // ─── API CALLS ───────────────────────────────────────────────────────────────
 // Use relative URLs so HA Ingress path prefix is preserved
-const BASE = window.location.pathname.replace(/\/$/, '');
+
+const BASE = window.location.pathname.replace(/\/+$/, '').replace(/\/api\/decisions.*|\/api\/alerts.*|\/api\/health.*|\/api\/metrics.*/, '');
 
 async function api(path, method = 'GET') {
   const resp = await fetch(BASE + path, { method });
