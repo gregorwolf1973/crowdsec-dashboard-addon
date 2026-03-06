@@ -1,6 +1,6 @@
 name: "CrowdSec Dashboard"
 description: "Real-time dashboard for CrowdSec bans, alerts and decisions with full management capabilities"
-version: "1.0.1"
+version: "1.0.2"
 slug: "crowdsec_dashboard"
 init: false
 arch:
