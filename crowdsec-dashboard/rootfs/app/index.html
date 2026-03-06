@@ -805,7 +805,7 @@ function startCountdown() {
 const BASE = '__INGRESS_PATH__';
 
 async function api(path, method = 'GET') {
-  const resp = await fetch(BASE + path, { method });
+  const resp = await fetch(BASE + path, { method, credentials: 'include' });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json();
 }
