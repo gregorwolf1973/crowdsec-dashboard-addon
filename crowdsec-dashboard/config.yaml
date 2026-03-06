@@ -27,4 +27,4 @@ schema:
   log_level: list(debug|info|warning|error)
 map:
   - config:rw
-image: "ghcr.io/home-assistant/{arch}-base-python:3.11"
+
