@@ -97,7 +97,12 @@ def crowdsec_delete(path):
 
 @app.route("/")
 def index():
-    return send_file("/app/index.html")
+    ingress_path = request.headers.get('X-Ingress-Path', '')
+    with open('/app/index.html', 'r') as f:
+        content = f.read()
+    content = content.replace('__INGRESS_PATH__', ingress_path)
+    from flask import Response
+    return Response(content, mimetype='text/html')
 
 @app.route("/api/health")
 def health():
