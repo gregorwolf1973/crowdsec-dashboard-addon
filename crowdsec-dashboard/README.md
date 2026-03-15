@@ -7,7 +7,7 @@ Echtzeit-Dashboard für CrowdSec Bans, Alerts und Decisions mit voller Verwaltun
 - 🛡 **Lokale Bans** anzeigen (eigene Engine)
 - 🌐 **CAPI Community Bans** anzeigen (15.000+ IPs)
 - ⚠️ **Alerts** mit Detail-Ansicht
-- 🗑 **Bans löschen** (einzeln oder alle)
+- 🗑 **Bans löschen** (einzeln oder alle) - noch in Arbeit, funktioniert noch nicht
 - 🔍 **Suche** nach IP, Szenario, Herkunft
 - 🔄 **Auto-Refresh** alle 30 Sekunden
 - 📊 **Statistiken** in der Sidebar
