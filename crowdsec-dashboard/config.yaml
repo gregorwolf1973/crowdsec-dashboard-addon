@@ -1,6 +1,6 @@
 name: "CrowdSec Dashboard"
 description: "Web-UI zum Anzeigen und Verwalten von CrowdSec Bans und Alerts"
-version: "1.1.7"
+version: "1.1.8"
 slug: "crowdsec_dashboard"
 init: false
 arch:
