@@ -197,6 +197,12 @@ entities:
 ```
 
 ---
+## Manuel eine IP Sperren
+
+Im Terminal
+```bash
+docker exec addon_424ccef4_crowdsec cscli --config /config/.storage/crowdsec/config/config.yaml decisions add --ip 1.2.3.4 --duration 1h --reason "test"
+```
 
 ## API Endpoints
 
