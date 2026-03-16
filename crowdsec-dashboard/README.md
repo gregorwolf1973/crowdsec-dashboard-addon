@@ -131,6 +131,8 @@ labels:
 
 ### Sensoren in configuration.yaml
 
+Port jeweils anpassen
+
 ```yaml
 sensor:
   - platform: rest
