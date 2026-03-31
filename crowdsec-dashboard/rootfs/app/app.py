@@ -21,21 +21,22 @@ def load_config():
     if os.path.exists(options_file):
         with open(options_file) as f:
             opts = json.load(f)
-            logger.info(f"Loaded config from {options_file}")
-            return opts
+        logger.info(f"Loaded config from {options_file}")
+        return opts
     # Fallback to environment variables
     return {
-        "crowdsec_url":      os.environ.get("CROWDSEC_URL",      "http://424ccef4-crowdsec:8080"),
-        "machine_id":        os.environ.get("MACHINE_ID",        "crowdsec-dashboard"),
-        "machine_password":  os.environ.get("MACHINE_PASSWORD",  "dashboard123"),
-        "bouncer_api_key":   os.environ.get("BOUNCER_API_KEY",   "kbf9zXlr+TmLjIx5hDippRfw5NdvziY1tyjlsej5u5g"),
+        "crowdsec_url": os.environ.get("CROWDSEC_URL", "http://424ccef4-crowdsec:8080"),
+        "machine_id": os.environ.get("MACHINE_ID", "crowdsec-dashboard"),
+        "machine_password": os.environ.get("MACHINE_PASSWORD", "dashboard123"),
+        # Security: do not ship a hardcoded default key
+        "bouncer_api_key": os.environ.get("BOUNCER_API_KEY", ""),
     }
 
 config = load_config()
-CROWDSEC_URL     = config.get("crowdsec_url",     "http://424ccef4-crowdsec:8080")
-MACHINE_ID       = config.get("machine_id",       "crowdsec-dashboard")
+CROWDSEC_URL = config.get("crowdsec_url", "http://424ccef4-crowdsec:8080")
+MACHINE_ID = config.get("machine_id", "crowdsec-dashboard")
 MACHINE_PASSWORD = config.get("machine_password", "dashboard123")
-BOUNCER_API_KEY  = config.get("bouncer_api_key",  "kbf9zXlr+TmLjIx5hDippRfw5NdvziY1tyjlsej5u5g")
+BOUNCER_API_KEY = config.get("bouncer_api_key", "")
 
 logger.info(f"CrowdSec LAPI: {CROWDSEC_URL}")
 logger.info(f"Bouncer Key: {'set' if BOUNCER_API_KEY else 'NOT SET!'}")
@@ -78,15 +79,11 @@ def get_jwt_token(force=False):
     logger.info("JWT token obtained")
     return _token
 
-def jwt_headers_fresh():
-    """Get JWT headers, retry with fresh token on 401."""
+def jwt_headers():
     return {"Authorization": f"Bearer {get_jwt_token()}", "Accept": "application/json"}
 
 def bouncer_headers():
     return {"X-Api-Key": BOUNCER_API_KEY, "Accept": "application/json"}
-
-def jwt_headers():
-    return {"Authorization": f"Bearer {get_jwt_token()}", "Accept": "application/json"}
 
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
 
@@ -109,8 +106,13 @@ def health():
 @app.route("/api/decisions")
 def decisions():
     try:
-        params = {k: request.args[k] for k in ("ip","range","scenario") if k in request.args}
-        resp = requests.get(f"{CROWDSEC_URL}/v1/decisions", headers=bouncer_headers(), params=params or None, timeout=15)
+        params = {k: request.args[k] for k in ("ip", "range", "scenario") if k in request.args}
+        resp = requests.get(
+            f"{CROWDSEC_URL}/v1/decisions",
+            headers=bouncer_headers(),
+            params=params or None,
+            timeout=15
+        )
         if resp.status_code == 404:
             return jsonify([])
         resp.raise_for_status()
@@ -123,12 +125,22 @@ def decisions():
 def alerts():
     try:
         params = {"limit": request.args.get("limit", "500")}
-        params.update({k: request.args[k] for k in ("ip","scenario") if k in request.args})
-        resp = requests.get(f"{CROWDSEC_URL}/v1/alerts", headers=jwt_headers(), params=params, timeout=15)
+        params.update({k: request.args[k] for k in ("ip", "scenario") if k in request.args})
+        resp = requests.get(
+            f"{CROWDSEC_URL}/v1/alerts",
+            headers=jwt_headers(),
+            params=params,
+            timeout=15
+        )
         # If 401, force token refresh and retry once
         if resp.status_code == 401:
             logger.warning("JWT 401 on alerts, refreshing token...")
-            resp = requests.get(f"{CROWDSEC_URL}/v1/alerts", headers={"Authorization": f"Bearer {get_jwt_token(force=True)}", "Accept": "application/json"}, params=params, timeout=15)
+            resp = requests.get(
+                f"{CROWDSEC_URL}/v1/alerts",
+                headers={"Authorization": f"Bearer {get_jwt_token(force=True)}", "Accept": "application/json"},
+                params=params,
+                timeout=15
+            )
         if resp.status_code == 404:
             return jsonify([])
         resp.raise_for_status()
@@ -137,6 +149,7 @@ def alerts():
         logger.error(f"Error fetching alerts: {e}")
         return jsonify({"error": str(e)}), 500
 
+# Fixed: proper path parameters
 @app.route("/api/decisions/<int:decision_id>", methods=["DELETE"])
 def delete_decision(decision_id):
     try:
@@ -162,15 +175,15 @@ def metrics():
     try:
         d = requests.get(f"{CROWDSEC_URL}/v1/decisions", headers=bouncer_headers(), timeout=15)
         decisions_data = d.json() if d.status_code == 200 else []
-        a = requests.get(f"{CROWDSEC_URL}/v1/alerts", headers=jwt_headers(), params={"limit":"500"}, timeout=15)
+        a = requests.get(f"{CROWDSEC_URL}/v1/alerts", headers=jwt_headers(), params={"limit": "500"}, timeout=15)
         alerts_data = a.json() if a.status_code == 200 else []
 
         by_type, by_origin, by_scenario = {}, {}, {}
         for dec in (decisions_data or []):
-            by_type[dec.get("type","ban")] = by_type.get(dec.get("type","ban"), 0) + 1
-            origin = dec.get("origin","unknown")
+            by_type[dec.get("type", "ban")] = by_type.get(dec.get("type", "ban"), 0) + 1
+            origin = dec.get("origin", "unknown")
             by_origin[origin] = by_origin.get(origin, 0) + 1
-            s = dec.get("scenario","unknown")
+            s = dec.get("scenario", "unknown")
             by_scenario[s] = by_scenario.get(s, 0) + 1
 
         return jsonify({
@@ -183,7 +196,6 @@ def metrics():
     except Exception as e:
         logger.error(f"Error fetching metrics: {e}")
         return jsonify({"error": str(e)}), 500
-
 
 @app.route("/api/decisions/<int:decision_id>/delete", methods=["POST"])
 def delete_decision_post(decision_id):
@@ -235,10 +247,8 @@ def remove_local_decisions():
         resp = requests.get(f"{CROWDSEC_URL}/v1/decisions", headers=bouncer_headers(), timeout=15)
         resp.raise_for_status()
         decisions = resp.json() or []
-        
         # Filter local ones
         local = [d for d in decisions if d.get("origin") in ("crowdsec", "cscli")]
-        
         deleted = 0
         for d in local:
             try:
@@ -247,14 +257,13 @@ def remove_local_decisions():
                     deleted += 1
             except Exception as e:
                 logger.warning(f"Could not delete decision {d['id']}: {e}")
-        
         logger.info(f"Deleted {deleted} local decisions")
         return jsonify({"success": True, "deleted": deleted})
     except Exception as e:
         logger.error(f"Error removing local decisions: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/decisions/ip/<ip>/remove", methods=["GET"])
+@app.route("/api/decisions/ip/<path:ip>/remove", methods=["GET"])
 def remove_by_ip(ip):
     """Delete decisions for a specific IP."""
     try:
