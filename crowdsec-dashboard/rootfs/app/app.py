@@ -8,14 +8,9 @@ import logging
 import requests
 from flask import Flask, jsonify, request, Response
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-# Read config from HA options file or environment
 def load_config():
     options_file = "/data/options.json"
     if os.path.exists(options_file):
@@ -23,12 +18,10 @@ def load_config():
             opts = json.load(f)
         logger.info(f"Loaded config from {options_file}")
         return opts
-    # Fallback to environment variables
     return {
         "crowdsec_url": os.environ.get("CROWDSEC_URL", "http://424ccef4-crowdsec:8080"),
         "machine_id": os.environ.get("MACHINE_ID", "crowdsec-dashboard"),
         "machine_password": os.environ.get("MACHINE_PASSWORD", "dashboard123"),
-        # Security: do not ship a hardcoded default key
         "bouncer_api_key": os.environ.get("BOUNCER_API_KEY", ""),
     }
 
@@ -43,7 +36,6 @@ logger.info(f"Bouncer Key: {'set' if BOUNCER_API_KEY else 'NOT SET!'}")
 
 app = Flask(__name__)
 
-# HA Ingress middleware
 class ReverseProxied:
     def __init__(self, app):
         self.app = app
@@ -58,7 +50,6 @@ class ReverseProxied:
 
 app.wsgi_app = ReverseProxied(app.wsgi_app)
 
-# JWT Token cache
 _token = None
 _token_expiry = 0
 
@@ -132,7 +123,6 @@ def alerts():
             params=params,
             timeout=15
         )
-        # If 401, force token refresh and retry once
         if resp.status_code == 401:
             logger.warning("JWT 401 on alerts, refreshing token...")
             resp = requests.get(
@@ -147,27 +137,6 @@ def alerts():
         return jsonify(resp.json() or [])
     except Exception as e:
         logger.error(f"Error fetching alerts: {e}")
-        return jsonify({"error": str(e)}), 500
-
-# Fixed: proper path parameters
-@app.route("/api/decisions/<int:decision_id>", methods=["DELETE"])
-def delete_decision(decision_id):
-    try:
-        resp = requests.delete(f"{CROWDSEC_URL}/v1/decisions/{decision_id}", headers=jwt_headers(), timeout=15)
-        resp.raise_for_status()
-        return jsonify({"success": True, "id": decision_id})
-    except Exception as e:
-        logger.error(f"Error deleting decision {decision_id}: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/decisions/all", methods=["DELETE"])
-def delete_all():
-    try:
-        resp = requests.delete(f"{CROWDSEC_URL}/v1/decisions", headers=jwt_headers(), timeout=15)
-        resp.raise_for_status()
-        return jsonify({"success": True})
-    except Exception as e:
-        logger.error(f"Error deleting all: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/metrics")
@@ -197,6 +166,18 @@ def metrics():
         logger.error(f"Error fetching metrics: {e}")
         return jsonify({"error": str(e)}), 500
 
+# ── DELETE: einzelne Decision (nur lokale) ────────────────────────────────────
+
+@app.route("/api/decisions/<int:decision_id>", methods=["DELETE"])
+def delete_decision(decision_id):
+    try:
+        resp = requests.delete(f"{CROWDSEC_URL}/v1/decisions/{decision_id}", headers=jwt_headers(), timeout=15)
+        resp.raise_for_status()
+        return jsonify({"success": True, "id": decision_id})
+    except Exception as e:
+        logger.error(f"Error deleting decision {decision_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/decisions/<int:decision_id>/delete", methods=["POST"])
 def delete_decision_post(decision_id):
     try:
@@ -207,77 +188,36 @@ def delete_decision_post(decision_id):
         logger.error(f"Error deleting decision {decision_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/decisions/all/delete", methods=["POST"])
-def delete_all_post():
-    try:
-        resp = requests.delete(f"{CROWDSEC_URL}/v1/decisions", headers=jwt_headers(), timeout=15)
-        resp.raise_for_status()
-        return jsonify({"success": True})
-    except Exception as e:
-        logger.error(f"Error deleting all: {e}")
-        return jsonify({"error": str(e)}), 500
+# ── DELETE: alle lokalen Decisions (crowdsec + cscli, KEIN CAPI) ──────────────
 
-@app.route("/api/decisions/<int:decision_id>/remove", methods=["GET"])
-def remove_decision(decision_id):
+@app.route("/api/decisions/local/delete-all", methods=["POST"])
+def delete_local_decisions():
+    """Löscht nur Decisions mit origin 'crowdsec' oder 'cscli'. CAPI-Einträge bleiben erhalten."""
     try:
-        resp = requests.delete(f"{CROWDSEC_URL}/v1/decisions/{decision_id}", headers=jwt_headers(), timeout=15)
-        resp.raise_for_status()
-        logger.info(f"Removed decision {decision_id}")
-        return jsonify({"success": True, "id": decision_id})
-    except Exception as e:
-        logger.error(f"Error removing decision {decision_id}: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/decisions/remove-all", methods=["GET"])
-def remove_all_decisions():
-    try:
-        resp = requests.delete(f"{CROWDSEC_URL}/v1/decisions", headers=jwt_headers(), timeout=15)
-        resp.raise_for_status()
-        logger.info("Removed all decisions")
-        return jsonify({"success": True})
-    except Exception as e:
-        logger.error(f"Error removing all decisions: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/decisions/local/remove-all", methods=["GET"])
-def remove_local_decisions():
-    """Delete only local decisions (origin: crowdsec or cscli)."""
-    try:
-        # Get all decisions first
         resp = requests.get(f"{CROWDSEC_URL}/v1/decisions", headers=bouncer_headers(), timeout=15)
         resp.raise_for_status()
-        decisions = resp.json() or []
-        # Filter local ones
-        local = [d for d in decisions if d.get("origin") in ("crowdsec", "cscli")]
+        all_decisions = resp.json() or []
+        local = [d for d in all_decisions if d.get("origin") in ("crowdsec", "cscli")]
         deleted = 0
+        errors = 0
         for d in local:
             try:
-                r = requests.delete(f"{CROWDSEC_URL}/v1/decisions/{d['id']}", headers=jwt_headers(), timeout=10)
+                r = requests.delete(
+                    f"{CROWDSEC_URL}/v1/decisions/{d['id']}",
+                    headers=jwt_headers(),
+                    timeout=10
+                )
                 if r.status_code in (200, 204):
                     deleted += 1
+                else:
+                    errors += 1
             except Exception as e:
                 logger.warning(f"Could not delete decision {d['id']}: {e}")
-        logger.info(f"Deleted {deleted} local decisions")
-        return jsonify({"success": True, "deleted": deleted})
+                errors += 1
+        logger.info(f"Deleted {deleted} local decisions, {errors} errors")
+        return jsonify({"success": True, "deleted": deleted, "errors": errors})
     except Exception as e:
         logger.error(f"Error removing local decisions: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/decisions/ip/<path:ip>/remove", methods=["GET"])
-def remove_by_ip(ip):
-    """Delete decisions for a specific IP."""
-    try:
-        resp = requests.delete(
-            f"{CROWDSEC_URL}/v1/decisions",
-            headers=jwt_headers(),
-            params={"ip": ip},
-            timeout=15
-        )
-        resp.raise_for_status()
-        logger.info(f"Deleted decisions for IP {ip}")
-        return jsonify({"success": True, "ip": ip})
-    except Exception as e:
-        logger.error(f"Error removing IP {ip}: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
