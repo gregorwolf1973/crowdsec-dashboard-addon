@@ -164,6 +164,7 @@ tbody tr:hover .del-btn{opacity:1;}
   </div>
 
   <div class="main">
+    <div id="decisions-ui">
     <div class="tabs">
       <div class="tab active" onclick="filterBy('local',this)">Lokal</div>
       <div class="tab" onclick="filterBy('all',this)">Alle</div>
@@ -184,6 +185,7 @@ tbody tr:hover .del-btn{opacity:1;}
       <div class="toolbar-gap"></div>
       <button class="btn btn-danger" onclick="confirmDeleteAll()">✕ Lokale löschen</button>
     </div>
+    </div>
 
     <div id="panel-decisions" class="panel active">
       <div class="table-wrap">
@@ -202,13 +204,30 @@ tbody tr:hover .del-btn{opacity:1;}
     </div>
 
     <div id="panel-alerts" class="panel">
-      <div class="alerts-info-panel">
-        <div class="alerts-count-box">
-          <div class="alerts-count-number" id="alertsCountBig">—</div>
-          <div class="alerts-count-label">Offene Alerts</div>
+      <div class="toolbar">
+        <div class="search-wrap">
+          <span class="search-icon-inner">⌕</span>
+          <input id="searchAlerts" class="search-input" placeholder="Suche (IP, Szenario, Engine)" oninput="onSearchAlerts()"/>
         </div>
-        <div class="alerts-hint">Details sind in den CrowdSec Logs verfügbar</div>
+        <select id="sortAlerts" class="select-input" onchange="onSearchAlerts()">
+          <option value="time">Neueste</option>
+          <option value="ip">IP</option>
+          <option value="scenario">Szenario</option>
+        </select>
       </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>IP Adresse</th><th>Szenario</th><th>Events</th><th>Engine</th><th>Erstellt</th>
+            </tr>
+          </thead>
+          <tbody id="alertsBody">
+            <tr><td colspan="5" class="loading-cell"><span class="spinner"></span> Lade Alerts...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="alertsPaginationBar" class="pagination"></div>
     </div>
   </div>
 </div>
@@ -229,7 +248,7 @@ tbody tr:hover .del-btn{opacity:1;}
 
 <script>
 let decisions=[], alerts=[];
-let filter='local', page=1;
+let filter='local', page=1, alertPage=1;
 const PAGE_SIZE=100, REFRESH_SEC=30;
 let countdown=REFRESH_SEC, countdownTimer;
 
@@ -283,7 +302,6 @@ async function refreshAll(){
       const cnt=alerts.length;
       document.getElementById('badgeAlerts').textContent=cnt;
       document.getElementById('statAlerts').textContent=cnt;
-      document.getElementById('alertsCountBig').textContent=cnt;
     }
     if(m.status==='fulfilled'){
       const met=m.value;
@@ -298,6 +316,7 @@ async function refreshAll(){
     setStatus('err','Verbindungsfehler');
   }
   renderDecisions();
+  renderAlerts();
   document.getElementById('refreshBtn').classList.remove('spinning');
   startCountdown();
 }
@@ -397,6 +416,8 @@ function switchPanel(name,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
   if(el) el.classList.add('active');
+  document.getElementById('decisions-ui').style.display=(name==='decisions'?'':'none');
+  if(name==='alerts') renderAlerts();
 }
 
 function confirmDelete(id,ip){
@@ -466,6 +487,65 @@ function fmtDate(iso){
 function esc(s){
   if(s==null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+}
+
+function onSearchAlerts(){alertPage=1;renderAlerts();}
+
+function renderAlerts(){
+  const tbody=document.getElementById('alertsBody');
+  if(!tbody) return;
+  const pagBar=document.getElementById('alertsPaginationBar');
+  const q=(document.getElementById('searchAlerts')?.value||'').toLowerCase();
+  let data=[...alerts];
+  if(q) data=data.filter(a=>
+    (a.source?.value||a.source?.ip||'').toLowerCase().includes(q)||
+    (a.scenario||'').toLowerCase().includes(q)||
+    (a.machine_id||'').toLowerCase().includes(q)
+  );
+  const sort=document.getElementById('sortAlerts')?.value||'time';
+  if(sort==='ip') data.sort((a,b)=>(a.source?.value||'').localeCompare(b.source?.value||''));
+  else if(sort==='scenario') data.sort((a,b)=>(a.scenario||'').localeCompare(b.scenario||''));
+  else data.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+  if(!data.length){
+    tbody.innerHTML='<tr><td colspan="5" class="empty-state"><div class="empty-title">⚠ Keine Alerts</div></td></tr>';
+    pagBar.innerHTML='';
+    return;
+  }
+  const totalPages=Math.ceil(data.length/PAGE_SIZE);
+  if(alertPage>totalPages) alertPage=1;
+  const slice=data.slice((alertPage-1)*PAGE_SIZE,alertPage*PAGE_SIZE);
+  tbody.innerHTML=slice.map(a=>{
+    const ip=esc(a.source?.value||a.source?.ip||'—');
+    const scenario=esc(a.scenario||'—');
+    const events=a.events_count??'—';
+    const machine=esc(a.machine_id||'—');
+    const created=fmtDate(a.created_at);
+    return '<tr>'
+      +'<td class="ip-text">'+ip+'</td>'
+      +'<td class="scenario-text">'+scenario+'</td>'
+      +'<td class="time-text">'+events+'</td>'
+      +'<td class="time-text">'+machine+'</td>'
+      +'<td class="time-text">'+created+'</td>'
+      +'</tr>';
+  }).join('');
+  const nums=[...new Set([1,totalPages,alertPage-2,alertPage-1,alertPage,alertPage+1,alertPage+2].filter(p=>p>=1&&p<=totalPages))].sort((a,b)=>a-b);
+  let html='<button class="page-btn" onclick="goAlertPage('+(Math.max(1,alertPage-1))+')">‹</button>';
+  let prev=0;
+  for(const n of nums){
+    if(prev&&n-prev>1) html+='<span class="page-info">…</span>';
+    html+='<button class="page-btn '+(n===alertPage?'active':'')+'" onclick="goAlertPage('+n+')">'+n+'</button>';
+    prev=n;
+  }
+  html+='<button class="page-btn" onclick="goAlertPage('+(Math.min(totalPages,alertPage+1))+')">›</button>';
+  html+='<span class="page-info">'+((alertPage-1)*PAGE_SIZE+1)+'–'+Math.min(alertPage*PAGE_SIZE,data.length)+' von '+data.length+'</span>';
+  pagBar.innerHTML=html;
+}
+
+function goAlertPage(p){
+  const total=Math.ceil(alerts.length/PAGE_SIZE);
+  if(p<1||p>total) return;
+  alertPage=p;
+  renderAlerts();
 }
 </script>
 </body>
