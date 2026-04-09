@@ -6,7 +6,7 @@ import json
 import time
 import logging
 import requests
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, stream_with_context
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -219,6 +219,41 @@ def delete_local_decisions():
     except Exception as e:
         logger.error(f"Error removing local decisions: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/events")
+def sse_events():
+    """SSE-Endpoint: schickt alle 30s einen Snapshot an verbundene Clients."""
+    def generate():
+        while True:
+            # Daten holen — Fehler hier nur loggen, Stream läuft weiter
+            try:
+                d = requests.get(f"{CROWDSEC_URL}/v1/decisions", headers=bouncer_headers(), timeout=10)
+                a = requests.get(f"{CROWDSEC_URL}/v1/alerts", headers=jwt_headers(), params={"limit": "500"}, timeout=10)
+                payload = json.dumps({
+                    "decisions": d.json() if d.status_code == 200 else [],
+                    "alerts":    a.json() if a.status_code == 200 else [],
+                })
+            except Exception as e:
+                logger.warning(f"SSE fetch error: {e}")
+                payload = json.dumps({"error": str(e)})
+
+            # Stream-Write: try/except damit ein Disconnect nicht nach oben propagiert
+            try:
+                yield f"data: {payload}\n\n"
+            except Exception:
+                logger.debug("SSE client disconnected")
+                break
+
+            time.sleep(30)
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 if __name__ == "__main__":
     logger.info("Starting CrowdSec Dashboard on port 8099")
