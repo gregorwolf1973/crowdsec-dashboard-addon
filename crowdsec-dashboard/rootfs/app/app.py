@@ -229,9 +229,26 @@ def sse_events():
             try:
                 d = requests.get(f"{CROWDSEC_URL}/v1/decisions", headers=bouncer_headers(), timeout=10)
                 a = requests.get(f"{CROWDSEC_URL}/v1/alerts", headers=jwt_headers(), params={"limit": "500"}, timeout=10)
+                decisions_data = d.json() if d.status_code == 200 else []
+                alerts_data    = a.json() if a.status_code == 200 else []
+                by_type, by_origin, by_scenario = {}, {}, {}
+                for dec in (decisions_data or []):
+                    t = dec.get("type", "ban")
+                    by_type[t] = by_type.get(t, 0) + 1
+                    o = dec.get("origin", "unknown")
+                    by_origin[o] = by_origin.get(o, 0) + 1
+                    s = dec.get("scenario", "unknown")
+                    by_scenario[s] = by_scenario.get(s, 0) + 1
                 payload = json.dumps({
-                    "decisions": d.json() if d.status_code == 200 else [],
-                    "alerts":    a.json() if a.status_code == 200 else [],
+                    "decisions": decisions_data or [],
+                    "alerts":    alerts_data or [],
+                    "metrics": {
+                        "total_decisions": len(decisions_data or []),
+                        "total_alerts":    len(alerts_data or []),
+                        "by_type":         by_type,
+                        "by_origin":       by_origin,
+                        "by_scenario":     dict(sorted(by_scenario.items(), key=lambda x: x[1], reverse=True)[:10]),
+                    },
                 })
             except Exception as e:
                 logger.warning(f"SSE fetch error: {e}")
