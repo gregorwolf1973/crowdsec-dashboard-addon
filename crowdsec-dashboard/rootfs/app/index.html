@@ -158,7 +158,7 @@ tbody tr:hover .del-btn{opacity:1;}
       <div class="stat-sub">Eigene Engine</div>
     </div>
     <div class="sidebar-footer">
-      <div class="timer-label">Nächstes Update in <span id="timerSec">30</span>s</div>
+      <div class="timer-label">Auto-Refresh in <span id="timerSec">30</span>s</div>
       <div class="timer-track"><div id="timerFill" class="timer-fill" style="width:100%"></div></div>
     </div>
   </div>
@@ -253,7 +253,7 @@ const PAGE_SIZE=100, REFRESH_SEC=30;
 let countdown=REFRESH_SEC, countdownTimer;
 
 document.addEventListener('DOMContentLoaded',()=>{
-  connectSSE();
+  refreshAll();
   startCountdown();
   const saved=localStorage.getItem('cs-theme');
   if(saved) setTheme(saved);
@@ -271,49 +271,14 @@ function startCountdown(){
   clearInterval(countdownTimer);
   countdown=REFRESH_SEC;
   countdownTimer=setInterval(()=>{
-    if(countdown>0) countdown--;
+    countdown--;
     document.getElementById('timerSec').textContent=countdown;
     document.getElementById('timerFill').style.width=(countdown/REFRESH_SEC*100)+'%';
+    if(countdown<=0) refreshAll();
   },1000);
 }
-function resetCountdown(){countdown=REFRESH_SEC;}
 
 const BASE='__INGRESS_PATH__';
-
-let evtSource=null;
-function connectSSE(){
-  if(evtSource) evtSource.close();
-  evtSource=new EventSource(BASE+'/api/events');
-  evtSource.onopen=()=>setStatus('ok','LAPI Verbunden');
-  evtSource.onmessage=(e)=>{
-    try{
-      const msg=JSON.parse(e.data);
-      if(msg.error){setStatus('err','Datenfehler');return;}
-      if(Array.isArray(msg.decisions)){
-        decisions=msg.decisions;
-        document.getElementById('badgeDecisions').textContent=decisions.length;
-      }
-      if(Array.isArray(msg.alerts)){
-        alerts=msg.alerts;
-        const cnt=alerts.length;
-        document.getElementById('badgeAlerts').textContent=cnt;
-        document.getElementById('statAlerts').textContent=cnt;
-      }
-      if(msg.metrics){
-        const met=msg.metrics;
-        document.getElementById('statBans').textContent=met.total_decisions??'—';
-        document.getElementById('statCapi').textContent=met.by_origin?.['CAPI']||0;
-        const subs=Object.entries(met.by_origin||{}).map(([k,v])=>k+': '+v).join(', ');
-        document.getElementById('statBansSub').textContent=subs||'—';
-      }
-      renderDecisions();
-      renderAlerts();
-      resetCountdown();
-      setStatus('ok','LAPI Verbunden');
-    }catch(err){console.error('SSE parse error',err);}
-  };
-  evtSource.onerror=()=>setStatus('err','Verbindung unterbrochen');
-}
 
 async function api(path,method='GET'){
   const resp=await fetch(BASE+path,{method,credentials:'include'});
