@@ -2,6 +2,8 @@
 
 Echtzeit-Dashboard für CrowdSec Bans, Alerts und Decisions mit voller Verwaltung direkt in der HA Sidebar.
 
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/gregorwolf1973)
+
 ## Features
 
 - 🛡 **Lokale Bans** anzeigen (eigene Engine)
