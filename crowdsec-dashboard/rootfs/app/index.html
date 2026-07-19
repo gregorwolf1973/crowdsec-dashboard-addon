@@ -58,7 +58,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .btn{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:all .15s;}
 .btn-danger{background:var(--red-bg);color:var(--red);border:1px solid rgba(244,67,54,0.2);}
 .btn-danger:hover{background:rgba(244,67,54,0.2);}
-.table-wrap{flex:1;overflow-y:auto;}
+.table-wrap{flex:1;overflow-y:auto;overflow-x:auto;}
 .table-wrap::-webkit-scrollbar{width:6px;}
 .table-wrap::-webkit-scrollbar-thumb{background:var(--border-hover);border-radius:3px;}
 table{width:100%;border-collapse:collapse;}
@@ -111,6 +111,22 @@ tbody tr:hover .del-btn{opacity:1;}
 .toast-icon{font-size:16px;}.toast.success .toast-icon{color:var(--green);}.toast.error .toast-icon{color:var(--red);}
 .panel{display:none;flex-direction:column;flex:1;overflow:hidden;}
 .panel.active{display:flex;}
+.scenario-row{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;}
+.scenario-name{color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.scenario-count{color:var(--text-muted);font-weight:600;flex-shrink:0;}
+@media(max-width:820px){:root{--sidebar-w:200px;}}
+@media(max-width:640px){
+  body{overflow:auto;height:auto;min-height:100vh;}
+  .content{grid-template-columns:1fr;grid-auto-rows:min-content;overflow:visible;}
+  .sidebar{flex-direction:row;flex-wrap:wrap;gap:6px;border-right:none;border-bottom:1px solid var(--border);align-items:center;overflow:visible;}
+  .sidebar .nav-section,.sidebar .stat-card,.sidebar-footer{display:none;}
+  .nav-item{flex:0 0 auto;}
+  .main{overflow:visible;}
+  .panel{overflow:visible;}
+  .table-wrap{max-height:none;}
+  .toolbar{flex-wrap:wrap;}
+  .search-wrap{max-width:none;}
+}
 </style>
 </head>
 <body>
@@ -123,7 +139,7 @@ tbody tr:hover .del-btn{opacity:1;}
   <div class="header-gap"></div>
   <div id="statusPill" class="status-pill"><span class="status-dot"></span> Verbunden</div>
   <button id="refreshBtn" class="icon-btn" onclick="refreshAll()" title="Neu laden">↻</button>
-  <button class="icon-btn" onclick="toggleTheme()" title="Theme">🌙</button>
+  <button id="themeBtn" class="icon-btn" onclick="toggleTheme()" title="Theme">🌙</button>
 </div>
 
 <div class="content">
@@ -157,8 +173,12 @@ tbody tr:hover .del-btn{opacity:1;}
       <div class="stat-value green" id="statLocal">—</div>
       <div class="stat-sub">Eigene Engine</div>
     </div>
+    <div class="stat-card">
+      <div class="stat-label">Top Szenarien</div>
+      <div id="topScenarios"><div class="stat-sub">—</div></div>
+    </div>
     <div class="sidebar-footer">
-      <div class="timer-label">Auto-Refresh in <span id="timerSec">30</span>s</div>
+      <div class="timer-label">Nächstes Update in <span id="timerSec">30</span>s</div>
       <div class="timer-track"><div id="timerFill" class="timer-fill" style="width:100%"></div></div>
     </div>
   </div>
@@ -192,11 +212,11 @@ tbody tr:hover .del-btn{opacity:1;}
         <table>
           <thead>
             <tr>
-              <th>IP Adresse</th><th>Typ</th><th>Szenario / Grund</th><th>Ziel</th><th>Herkunft</th><th>Gültig bis</th><th></th>
+              <th>IP Adresse</th><th>Typ</th><th>Szenario / Grund</th><th>Herkunft</th><th>Gültig bis</th><th></th>
             </tr>
           </thead>
           <tbody id="decisionsBody">
-            <tr><td colspan="7" class="loading-cell"><span class="spinner"></span> Lade Bans...</td></tr>
+            <tr><td colspan="6" class="loading-cell"><span class="spinner"></span> Lade Bans...</td></tr>
           </tbody>
         </table>
       </div>
@@ -253,29 +273,90 @@ const PAGE_SIZE=100, REFRESH_SEC=30;
 let countdown=REFRESH_SEC, countdownTimer;
 
 document.addEventListener('DOMContentLoaded',()=>{
-  refreshAll();
-  startCountdown();
   const saved=localStorage.getItem('cs-theme');
-  if(saved) setTheme(saved);
+  if(saved) setTheme(saved); else updateThemeIcon();
+  document.getElementById('decisionsBody').addEventListener('click',onTableClick);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape') closeModal();});
+  refreshAll();
+  connectSSE();
 });
 
+function onTableClick(e){
+  const btn=e.target.closest('button[data-act="del"]');
+  if(!btn) return;
+  confirmDelete(parseInt(btn.dataset.id,10),btn.dataset.ip||'');
+}
+
+function updateThemeIcon(){
+  const cur=document.documentElement.getAttribute('data-theme');
+  const b=document.getElementById('themeBtn');
+  if(b) b.textContent=(cur==='dark'?'☀':'🌙');
+}
 function setTheme(t){
   document.documentElement.setAttribute('data-theme',t);
   try{localStorage.setItem('cs-theme',t);}catch(e){}
+  updateThemeIcon();
 }
 function toggleTheme(){
   const cur=document.documentElement.getAttribute('data-theme');
   setTheme(cur==='dark'?'light':'dark');
 }
-function startCountdown(){
+function resetCountdown(){
   clearInterval(countdownTimer);
   countdown=REFRESH_SEC;
+  const secEl=document.getElementById('timerSec'),fillEl=document.getElementById('timerFill');
+  secEl.textContent=countdown;fillEl.style.width='100%';
   countdownTimer=setInterval(()=>{
-    countdown--;
-    document.getElementById('timerSec').textContent=countdown;
-    document.getElementById('timerFill').style.width=(countdown/REFRESH_SEC*100)+'%';
-    if(countdown<=0) refreshAll();
+    countdown=Math.max(0,countdown-1);
+    secEl.textContent=countdown;
+    fillEl.style.width=(countdown/REFRESH_SEC*100)+'%';
   },1000);
+}
+
+function connectSSE(){
+  if(typeof EventSource==='undefined') return;
+  try{
+    const es=new EventSource(BASE+'/api/events');
+    es.onmessage=ev=>{
+      let p;try{p=JSON.parse(ev.data);}catch(e){return;}
+      if(p.error){setStatus('err','Verbindungsfehler');return;}
+      if(Array.isArray(p.decisions)) decisions=p.decisions;
+      if(Array.isArray(p.alerts)) alerts=p.alerts;
+      updateStats();
+      renderDecisions();
+      renderAlerts();
+      setStatus('ok','LAPI Verbunden');
+      resetCountdown();
+    };
+    es.onerror=()=>setStatus('err','Verbindung unterbrochen');
+  }catch(e){}
+}
+
+function updateStats(){
+  const byOrigin={};
+  for(const d of decisions){const o=d.origin||'unknown';byOrigin[o]=(byOrigin[o]||0)+1;}
+  document.getElementById('badgeDecisions').textContent=decisions.length;
+  document.getElementById('statBans').textContent=decisions.length;
+  document.getElementById('statCapi').textContent=byOrigin['CAPI']||0;
+  document.getElementById('statLocal').textContent=byOrigin['crowdsec']||0;
+  const subs=Object.entries(byOrigin).map(([k,v])=>k+': '+v).join(', ');
+  document.getElementById('statBansSub').textContent=subs||'—';
+  const cnt=alerts.length;
+  document.getElementById('badgeAlerts').textContent=cnt;
+  document.getElementById('statAlerts').textContent=cnt;
+  updateScenarios();
+}
+function updateScenarios(){
+  const el=document.getElementById('topScenarios');
+  if(!el) return;
+  const by={};
+  for(const d of decisions){const s=d.scenario||'unknown';by[s]=(by[s]||0)+1;}
+  const top=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  if(!top.length){el.innerHTML='<div class="stat-sub">—</div>';return;}
+  el.innerHTML=top.map(([s,c])=>{
+    const name=s.split('/').pop();
+    return '<div class="scenario-row"><span class="scenario-name" title="'+esc(s)+'">'+esc(name)+'</span><span class="scenario-count">'+c+'</span></div>';
+  }).join('');
 }
 
 const BASE='__INGRESS_PATH__';
@@ -289,29 +370,13 @@ async function api(path,method='GET'){
 async function refreshAll(){
   document.getElementById('refreshBtn').classList.add('spinning');
   try{
-    const [d,a,m]=await Promise.allSettled([
+    const [d,a]=await Promise.allSettled([
       api('/api/decisions'),
       api('/api/alerts'),
-      api('/api/metrics'),
     ]);
-    if(d.status==='fulfilled'){
-      decisions=d.value||[];
-      document.getElementById('badgeDecisions').textContent=decisions.length;
-    }
-    if(a.status==='fulfilled'){
-      alerts=a.value||[];
-      const cnt=alerts.length;
-      document.getElementById('badgeAlerts').textContent=cnt;
-      document.getElementById('statAlerts').textContent=cnt;
-    }
-    if(m.status==='fulfilled'){
-      const met=m.value;
-      document.getElementById('statBans').textContent=met.total_decisions??'—';
-      const capi=(met.by_origin?.['CAPI']||0);
-      document.getElementById('statCapi').textContent=capi;
-      const subs=Object.entries(met.by_origin||{}).map(([k,v])=>k+': '+v).join(', ');
-      document.getElementById('statBansSub').textContent=subs||'—';
-    }
+    if(d.status==='fulfilled') decisions=d.value||[];
+    if(a.status==='fulfilled') alerts=a.value||[];
+    updateStats();
     setStatus('ok','LAPI Verbunden');
   }catch(e){
     setStatus('err','Verbindungsfehler');
@@ -319,7 +384,7 @@ async function refreshAll(){
   renderDecisions();
   renderAlerts();
   document.getElementById('refreshBtn').classList.remove('spinning');
-  startCountdown();
+  resetCountdown();
 }
 
 function filterBy(f,el){
@@ -328,12 +393,13 @@ function filterBy(f,el){
   if(el) el.classList.add('active');
   renderDecisions();
 }
-function onSearch(){page=1;renderDecisions();}
+let _searchTimer;
+function onSearch(){clearTimeout(_searchTimer);_searchTimer=setTimeout(()=>{page=1;renderDecisions();},200);}
 
 function getFiltered(){
   const q=document.getElementById('searchDecisions').value.toLowerCase();
   let data=[...decisions];
-  if(filter==='local') data=data.filter(d=>d.origin==='crowdsec');
+  if(filter==='local') data=data.filter(d=>d.origin==='crowdsec'||d.origin==='cscli');
   else if(filter==='ban') data=data.filter(d=>d.type==='ban');
   else if(filter==='CAPI') data=data.filter(d=>d.origin==='CAPI');
   else if(filter==='cscli') data=data.filter(d=>d.origin==='cscli');
@@ -355,7 +421,7 @@ function renderDecisions(){
   const pagBar=document.getElementById('paginationBar');
   const data=getFiltered();
   if(!data.length){
-    tbody.innerHTML='<tr><td colspan="7" class="empty-state"><div class="empty-title">🛡 Keine Einträge</div></td></tr>';
+    tbody.innerHTML='<tr><td colspan="6" class="empty-state"><div class="empty-title">🛡 Keine Einträge</div></td></tr>';
     pagBar.innerHTML='';
     return;
   }
@@ -363,6 +429,8 @@ function renderDecisions(){
   if(page>totalPages) page=1;
   const slice=data.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
 
+  const _wrap=document.querySelector('#panel-decisions .table-wrap');
+  const _st=_wrap?_wrap.scrollTop:0;
   tbody.innerHTML=slice.map(d=>{
     const type=d.type||'ban';
     const typeBadge=type==='ban'?'<span class="badge badge-ban">BAN</span>'
@@ -378,18 +446,18 @@ function renderDecisions(){
     const untilDate=d.until?new Date(d.until):parseDuration(d.duration);
     const until=untilDate?fmtDate(untilDate.toISOString()):'∞';
     const delBtn=isLocal
-      ?'<button class="del-btn" onclick="confirmDelete('+d.id+',\''+esc(d.value)+'\')">Entfernen</button>'
+      ?'<button class="del-btn" data-act="del" data-id="'+d.id+'" data-ip="'+esc(d.value||'')+'">Entfernen</button>'
       :'';
     return '<tr>'
       +'<td class="ip-text">'+esc(d.value||'—')+'</td>'
       +'<td>'+typeBadge+'</td>'
       +'<td class="scenario-text">'+esc(d.scenario||'—')+'</td>'
-      +'<td>—</td>'
       +'<td>'+originBadge+'</td>'
       +'<td class="time-text">'+until+'</td>'
       +'<td>'+delBtn+'</td>'
       +'</tr>';
   }).join('');
+  if(_wrap) _wrap.scrollTop=_st;
 
   const nums=[...new Set([1,totalPages,page-2,page-1,page,page+1,page+2].filter(p=>p>=1&&p<=totalPages))].sort((a,b)=>a-b);
   let html='<button class="page-btn" onclick="goPage('+(Math.max(1,page-1))+')">‹</button>';
@@ -450,6 +518,8 @@ function showModal(title,text,cb){
   document.getElementById('modalOk').onclick=()=>{
     const fn=_cb;_cb=null;closeModal();if(fn)fn();
   };
+  const cancelBtn=document.querySelector('#modal .modal-actions .btn');
+  if(cancelBtn) cancelBtn.focus();
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');_cb=null;}
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
@@ -487,10 +557,16 @@ function fmtDate(iso){
 }
 function esc(s){
   if(s==null) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
 }
 
-function onSearchAlerts(){alertPage=1;renderAlerts();}
+let _searchTimerA;
+function onSearchAlerts(){clearTimeout(_searchTimerA);_searchTimerA=setTimeout(()=>{alertPage=1;renderAlerts();},200);}
 
 function renderAlerts(){
   const tbody=document.getElementById('alertsBody');
@@ -515,6 +591,8 @@ function renderAlerts(){
   const totalPages=Math.ceil(data.length/PAGE_SIZE);
   if(alertPage>totalPages) alertPage=1;
   const slice=data.slice((alertPage-1)*PAGE_SIZE,alertPage*PAGE_SIZE);
+  const _wrap=document.querySelector('#panel-alerts .table-wrap');
+  const _st=_wrap?_wrap.scrollTop:0;
   tbody.innerHTML=slice.map(a=>{
     const ip=esc(a.source?.value||a.source?.ip||'—');
     const scenario=esc(a.scenario||'—');
@@ -529,6 +607,7 @@ function renderAlerts(){
       +'<td class="time-text">'+created+'</td>'
       +'</tr>';
   }).join('');
+  if(_wrap) _wrap.scrollTop=_st;
   const nums=[...new Set([1,totalPages,alertPage-2,alertPage-1,alertPage,alertPage+1,alertPage+2].filter(p=>p>=1&&p<=totalPages))].sort((a,b)=>a-b);
   let html='<button class="page-btn" onclick="goAlertPage('+(Math.max(1,alertPage-1))+')">‹</button>';
   let prev=0;

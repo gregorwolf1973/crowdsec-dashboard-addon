@@ -274,4 +274,4 @@ def sse_events():
 
 if __name__ == "__main__":
     logger.info("Starting CrowdSec Dashboard on port 8099")
-    app.run(host="0.0.0.0", port=8099, debug=False)
+    app.run(host="0.0.0.0", port=8099, debug=False, threaded=True)
