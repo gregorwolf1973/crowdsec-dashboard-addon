@@ -2,8 +2,6 @@
 
 Echtzeit-Dashboard für CrowdSec Bans, Alerts und Decisions mit voller Verwaltung direkt in der HA Sidebar.
 
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/gregorwolf1973)
-
 ## Features
 
 - 🛡 **Lokale Bans** anzeigen (eigene Engine)
@@ -133,28 +131,36 @@ labels:
 
 ### Sensoren in configuration.yaml
 
-Port jeweils anpassen
+> **Wichtig – die interne IP wechselt!** Die Docker-IP des Addons
+> (`172.30.33.x`) ändert sich bei jedem Neustart. Trage sie nicht fest ein,
+> sonst laufen die Sensoren regelmäßig auf `unavailable`. Ermittle die
+> aktuelle IP mit:
+> ```bash
+> docker ps | grep crowdsec_dashboard
+> docker inspect <container> | grep IPAddress
+> ```
+> Alternativ funktioniert in vielen Setups der Addon-Hostname
+> `http://local_crowdsec_dashboard:8099` – falls nicht, bleibt die IP.
+
+Ein **gemeinsamer** REST-Sensor fragt die Metrics nur einmal pro Minute ab
+(statt dreimal) und leitet die Einzelwerte ab:
 
 ```yaml
-sensor:
-  - platform: rest
-    name: "CrowdSec Lokale Bans"
-    resource: "http://172.30.33.4:8099/api/metrics"
-    value_template: "{{ value_json.by_origin.crowdsec | default(0) }}"
+rest:
+  - resource: "http://172.30.33.4:8099/api/metrics"
     scan_interval: 60
-
-  - platform: rest
-    name: "CrowdSec Aktive Bans"
-    resource: "http://172.30.33.4:8099/api/metrics"
-    value_template: "{{ value_json.total_decisions | default(0) }}"
-    scan_interval: 60
-
-  - platform: rest
-    name: "CrowdSec Alerts"
-    resource: "http://172.30.33.4:8099/api/metrics"
-    value_template: "{{ value_json.total_alerts | default(0) }}"
-    scan_interval: 60
+    sensor:
+      - name: "CrowdSec Aktive Bans"
+        value_template: "{{ value_json.total_decisions | default(0) }}"
+      - name: "CrowdSec Lokale Bans"
+        value_template: "{{ value_json.by_origin.crowdsec | default(0) }}"
+      - name: "CrowdSec Alerts"
+        value_template: "{{ value_json.total_alerts | default(0) }}"
 ```
+
+Bleibt ein Sensor auf `unavailable`, ist meist die IP veraltet (siehe Hinweis
+oben) oder der Bouncer-Key nach einem CrowdSec-Neustart ungültig – das
+Dashboard zeigt in dem Fall oben rechts „Fehler: Decisions/Metrics".
 
 ### REST Commands in configuration.yaml
 
@@ -201,12 +207,6 @@ entities:
 ```
 
 ---
-## Manuel eine IP Sperren
-
-Im Terminal
-```bash
-docker exec addon_424ccef4_crowdsec cscli --config /config/.storage/crowdsec/config/config.yaml decisions add --ip 1.2.3.4 --duration 1h --reason "test"
-```
 
 ## API Endpoints
 
