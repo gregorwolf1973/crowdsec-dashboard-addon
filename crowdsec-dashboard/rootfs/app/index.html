@@ -537,6 +537,7 @@ tbody tr:hover .del-btn { opacity: 1; }
     <div class="stat-card">
       <div class="stat-label">Offene Alerts</div>
       <div class="stat-value yellow" id="statAlerts">—</div>
+      <div class="stat-sub" id="statAlertsSub">Eigene Engine</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">CAPI Blocklist</div>
@@ -693,7 +694,9 @@ async function refreshAll() {
     }
     if (a.status === 'fulfilled') {
       alerts = a.value || [];
-      document.getElementById('badgeAlerts').textContent = alerts.length;
+      document.getElementById('badgeAlerts').textContent = alerts.filter(isLocalAlert).length;
+      const lastLocal = alerts.filter(isLocalAlert).map(x => x.created_at || x.start_at).filter(Boolean).sort().pop();
+      document.getElementById('statAlertsSub').textContent = lastLocal ? `Letzte Erkennung ${fmtDate(lastLocal)}` : 'Keine lokale Erkennung';
       // Build IP -> alert map for URL lookup
       alertsMap = {};
       for (const al of alerts) {
@@ -844,15 +847,18 @@ function safeDecode(s) {
   try { return decodeURIComponent(s); } catch(e) { return s; }
 }
 
+// CAPI/blocklist import events ("update : +N/-M IPs", no real IP source) are no local detections.
+// The backend already requests include_capi=false; this keeps badge, stat card and list consistent regardless.
+function isLocalAlert(a) {
+  const src = a.source?.ip || a.source?.range || '';
+  const scenario = a.scenario || '';
+  return src && !scenario.startsWith('update :') && !scenario.startsWith('lists:');
+}
+
 function renderAlerts() {
   const q = document.getElementById('searchAlerts').value.toLowerCase();
   const container = document.getElementById('alertsBody');
-  // Filter out CAPI update events (no real IP source)
-  let data = alerts.filter(a => {
-    const src = a.source?.ip || a.source?.range || '';
-    const scenario = a.scenario || '';
-    return src && !scenario.startsWith('update :') && !scenario.startsWith('lists:');
-  });
+  let data = alerts.filter(isLocalAlert);
   if (q) data = data.filter(a =>
     (a.source?.ip||'').toLowerCase().includes(q) ||
     (a.source?.range||'').toLowerCase().includes(q) ||

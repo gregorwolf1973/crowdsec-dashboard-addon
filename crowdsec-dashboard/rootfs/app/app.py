@@ -142,7 +142,8 @@ def decisions():
 @app.route("/api/alerts")
 def alerts():
     try:
-        params = {"limit": request.args.get("limit", "500")}
+        # CAPI/blocklist import alerts ("update : +N/-M IPs") are no local detections - exclude them like cscli does
+        params = {"limit": request.args.get("limit", "500"), "include_capi": request.args.get("include_capi", "false")}
         params.update({k: request.args[k] for k in ("ip", "scenario") if k in request.args})
         resp = cs_jwt("GET", "/v1/alerts", params=params)
         if resp.status_code == 404:
@@ -157,7 +158,7 @@ def metrics():
     try:
         d = cs_bouncer("GET", "/v1/decisions")
         decisions_data = d.json() if d.status_code == 200 else []
-        a = cs_jwt("GET", "/v1/alerts", params={"limit": "500"})
+        a = cs_jwt("GET", "/v1/alerts", params={"limit": "500", "include_capi": "false"})
         alerts_data = a.json() if a.status_code == 200 else []
 
         by_type, by_origin, by_scenario = {}, {}, {}

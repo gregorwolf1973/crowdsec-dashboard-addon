@@ -213,7 +213,7 @@ entities:
 | Endpoint | Methode | Beschreibung |
 |----------|---------|--------------|
 | `/api/decisions` | GET | Alle aktiven Decisions |
-| `/api/alerts` | GET | Alerts (max 500) |
+| `/api/alerts` | GET | Lokale Alerts (max 500). CAPI-Import-Alerts nur mit `?include_capi=true` |
 | `/api/metrics` | GET | Statistiken |
 | `/api/decisions/{id}/remove` | GET | Ban per ID löschen |
 | `/api/decisions/remove-all` | GET | Alle Bans löschen |
