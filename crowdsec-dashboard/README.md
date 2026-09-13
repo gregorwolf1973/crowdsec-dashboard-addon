@@ -39,8 +39,10 @@ https://github.com/gregorwolf1973/crowdsec-dashboard-addon
 
 ### Schritt 2: CrowdSec Machine registrieren
 
+> Aktuelle Home-Assistant-Versionen nennen Addon-Container `app_<slug>`. Bei älteren Versionen heißt der Container noch `addon_424ccef4_crowdsec`. Ohne Schutzmodus-Abschaltung im SSH-Addon ist `docker` nicht erreichbar; als Nicht-root-Benutzer `sudo` voranstellen.
+
 ```bash
-docker exec addon_424ccef4_crowdsec cscli \
+docker exec app_424ccef4_crowdsec cscli \
   --config /config/.storage/crowdsec/config/config.yaml \
   machines add crowdsec-dashboard --password dashboard123 --force
 ```
@@ -55,7 +57,7 @@ Erwartete Ausgabe: `crowdsec-dashboard|1`
 ### Schritt 3: Bouncer API Key erstellen
 
 ```bash
-docker exec addon_424ccef4_crowdsec cscli \
+docker exec app_424ccef4_crowdsec cscli \
   --config /config/.storage/crowdsec/config/config.yaml \
   bouncers add crowdsec-dashboard-bouncer
 ```
@@ -65,11 +67,11 @@ Den ausgegebenen Key notieren.
 ### Schritt 4: CrowdSec Collections installieren
 
 ```bash
-docker exec addon_424ccef4_crowdsec cscli \
+docker exec app_424ccef4_crowdsec cscli \
   --config /config/.storage/crowdsec/config/config.yaml \
   hub update
 
-docker exec addon_424ccef4_crowdsec cscli \
+docker exec app_424ccef4_crowdsec cscli \
   --config /config/.storage/crowdsec/config/config.yaml \
   collections install crowdsecurity/nginx \
   crowdsecurity/nginx-proxy-manager \
@@ -257,14 +259,14 @@ Nach jedem HA-Neustart werden automatisch wiederhergestellt:
 
 Falls JWT-Login fehlschlägt (401 in Logs):
 ```bash
-docker exec addon_424ccef4_crowdsec cscli \
+docker exec app_424ccef4_crowdsec cscli \
   --config /config/.storage/crowdsec/config/config.yaml \
   machines add crowdsec-dashboard --password dashboard123 --force
 ```
 
 Falls Firewall Bouncer fehlschlägt (access forbidden):
 ```bash
-docker exec addon_424ccef4_crowdsec cscli \
+docker exec app_424ccef4_crowdsec cscli \
   --config /config/.storage/crowdsec/config/config.yaml \
   bouncers add firewall-bouncer
 ```
@@ -286,13 +288,13 @@ ps aux | grep "docker logs" | grep -v grep
 # Logs ankommen?
 tail -5 /config/.storage/crowdsec/npm.log
 # CrowdSec verarbeitet Logs?
-docker exec addon_424ccef4_crowdsec cscli \
+docker exec app_424ccef4_crowdsec cscli \
   --config /config/.storage/crowdsec/config/config.yaml metrics | head -10
 ```
 
 ### Collections nach Neustart weg
 ```bash
-docker exec addon_424ccef4_crowdsec cscli \
+docker exec app_424ccef4_crowdsec cscli \
   --config /config/.storage/crowdsec/config/config.yaml \
   collections list
 ```
