@@ -1,5 +1,7 @@
 # CrowdSec Dashboard — Home Assistant Add-on
 
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/gregorwolf1973)
+
 Echtzeit-Dashboard für CrowdSec Bans, Alerts und Decisions mit voller Verwaltung direkt in der HA Sidebar.
 
 ## Features
@@ -217,6 +219,7 @@ entities:
 | `/api/decisions` | GET | Alle aktiven Decisions |
 | `/api/alerts` | GET | Lokale Alerts (max 500). CAPI-Import-Alerts nur mit `?include_capi=true` |
 | `/api/metrics` | GET | Statistiken |
+| `/api/health` | GET | Statusprüfung (JWT-Login an der LAPI) |
 | `/api/decisions/{id}/remove` | GET | Ban per ID löschen |
 | `/api/decisions/remove-all` | GET | Alle Bans löschen |
 | `/api/decisions/local/remove-all` | GET | Nur lokale Bans löschen |
