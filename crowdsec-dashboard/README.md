@@ -32,7 +32,7 @@ Echtzeit-Dashboard für CrowdSec Bans, Alerts und Decisions mit voller Verwaltun
 
 ### Schritt 1: Repository in HA hinzufügen
 
-**Einstellungen → Add-ons → Add-on Store → ⋮ → Repositories**
+**Einstellungen → Apps → App installieren → ⋮ → Repositories**
 
 URL hinzufügen:
 ```

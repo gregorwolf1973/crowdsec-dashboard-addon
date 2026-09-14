@@ -1,5 +1,7 @@
 # CrowdSec Dashboard — Home Assistant Add-on
 
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/gregorwolf1973)
+
 Echtzeit-Dashboard für CrowdSec Bans, Alerts und Decisions direkt in der Home Assistant Sidebar.
 
 [![Release](https://img.shields.io/github/v/release/gregorwolf1973/crowdsec-dashboard-addon?style=flat-square)](https://github.com/gregorwolf1973/crowdsec-dashboard-addon/releases)
@@ -13,14 +15,14 @@ Echtzeit-Dashboard für CrowdSec Bans, Alerts und Decisions direkt in der Home A
 
 [![Add Repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fgregorwolf1973%2Fcrowdsec-dashboard-addon)
 
-Oder manuell unter **Einstellungen → Add-ons → Add-on Store → ⋮ → Repositories**:
+Oder manuell unter **Einstellungen → Apps → App installieren → ⋮ → Repositories**:
 ```
 https://github.com/gregorwolf1973/crowdsec-dashboard-addon
 ```
 
 **Schritt 2 — Add-on installieren:**
 
-Nach dem Hinzufügen des Repositories erscheint **CrowdSec Dashboard** im Add-on Store. Installieren, konfigurieren und starten.
+Nach dem Hinzufügen des Repositories erscheint **CrowdSec Dashboard** in der App-Übersicht. Installieren, konfigurieren und starten.
 
 Die vollständige Einrichtungsanleitung (Machine registrieren, Bouncer Key, Sensoren etc.) findest du in der [Add-on Dokumentation](crowdsec-dashboard/README.md).
 
@@ -36,14 +38,6 @@ Die vollständige Einrichtungsanleitung (Machine registrieren, Bouncer Key, Sens
 - **Auto-Refresh** — Aktualisiert automatisch alle 30 Sekunden
 - **Dark / Light Mode** — Umschaltbar per Klick
 - **HA Sidebar Integration** — Vollständig über Ingress eingebunden
-
----
-
-## Screenshots
-
-| Bans / Decisions | Alerts |
-|---|---|
-| ![Decisions](https://raw.githubusercontent.com/gregorwolf1973/crowdsec-dashboard-addon/main/crowdsec-dashboard/icon.png) | ![Alerts](https://raw.githubusercontent.com/gregorwolf1973/crowdsec-dashboard-addon/main/crowdsec-dashboard/icon.png) |
 
 ---
 
