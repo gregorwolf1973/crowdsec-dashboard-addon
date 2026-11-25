@@ -1,6 +1,7 @@
 name: "CrowdSec Dashboard"
-description: "Web-UI zum Anzeigen und Verwalten von CrowdSec Bans und Alerts"
-version: "1.4.3"
+description: "Web UI to view and manage CrowdSec bans and alerts"
+version: "1.4.4"
+image: ghcr.io/gregorwolf1973/{arch}-addon-crowdsec_dashboard
 url: "https://github.com/gregorwolf1973/crowdsec-dashboard-addon"
 slug: "crowdsec_dashboard"
 init: false
